@@ -2,6 +2,7 @@ import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
+import DataTable from '../components/DataTable';
 import { useAuth } from '../context/AuthContext';
 
 export default function Dashboard() {
@@ -15,9 +16,20 @@ export default function Dashboard() {
   ];
 
   const recent = [
-    { name: 'Ali Khan', job: 'Frontend Developer', status: 'shortlisted' },
-    { name: 'Sara Ahmed', job: 'Backend Engineer', status: 'applied' },
-    { name: 'Bilal Raza', job: 'UI Designer', status: 'interview' },
+    { name: 'Ali Khan', job: 'Frontend Developer', status: 'shortlisted', date: '2025-01-12' },
+    { name: 'Sara Ahmed', job: 'Backend Engineer', status: 'applied', date: '2025-01-11' },
+    { name: 'Bilal Raza', job: 'UI Designer', status: 'interview', date: '2025-01-10' },
+  ];
+
+  const columns = [
+    { key: 'name', label: 'Candidate' },
+    { key: 'job', label: 'Job' },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (row) => <Badge status={row.status} />,
+    },
+    { key: 'date', label: 'Applied' },
   ];
 
   return (
@@ -39,17 +51,7 @@ export default function Dashboard() {
         <h2 className="text-lg font-semibold text-slate-900 mb-4">
           Recent Applications
         </h2>
-        <div className="divide-y divide-slate-100">
-          {recent.map((r) => (
-            <div key={r.name} className="flex items-center justify-between py-3">
-              <div>
-                <p className="font-medium text-slate-800">{r.name}</p>
-                <p className="text-sm text-slate-500">{r.job}</p>
-              </div>
-              <Badge status={r.status} />
-            </div>
-          ))}
-        </div>
+        <DataTable columns={columns} data={recent} />
       </Card>
     </Layout>
   );
