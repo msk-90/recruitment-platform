@@ -1,10 +1,15 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const [role, setRole] = useState('recruiter');
   const [form, setForm] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -17,11 +22,12 @@ export default function Login() {
     if (!form.email) newErrors.email = 'Email is required';
     if (!form.password) newErrors.password = 'Password is required';
     if (Object.keys(newErrors).length) return setErrors(newErrors);
+
     setLoading(true);
     setTimeout(() => {
-      setLoading(false);
-      alert(`Login as ${role} — API coming Day 4`);
-    }, 800);
+      login(role);
+      navigate('/dashboard');
+    }, 600);
   };
 
   return (
@@ -98,11 +104,8 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="text-sm text-center text-slate-600 mt-6">
-          New here?{' '}
-          <a href="#" className="text-blue-600 font-medium hover:underline">
-            Create an account
-          </a>
+        <p className="text-xs text-center text-slate-400 mt-6">
+          Demo: any email + password works
         </p>
       </div>
     </div>
