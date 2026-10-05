@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Password is required'],
       minlength: [6, 'Password must be at least 6 characters'],
-      select: false, // don't return password by default
+      select: false,
     },
     role: {
       type: String,
@@ -50,14 +50,14 @@ const userSchema = new mongoose.Schema(
       default: [],
     },
     resume: {
-      type: String, // file path or URL
+      type: String,
     },
     bio: {
       type: String,
       maxlength: [500, 'Bio cannot exceed 500 characters'],
     },
     experience: {
-      type: String, // e.g. "3 yrs"
+      type: String,
     },
   },
   {
@@ -68,7 +68,7 @@ const userSchema = new mongoose.Schema(
 );
 
 // Indexes
-userSchema.index({ email: 1 });
+// NOTE: 'email' already has unique: true — no need for userSchema.index({ email: 1 })
 userSchema.index({ role: 1 });
 
 // Virtual: applications submitted by this candidate
