@@ -6,9 +6,14 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "seed": "node utils/seed.js"
   },
-  "keywords": ["mern", "recruitment", "express"],
+  "keywords": [
+    "mern",
+    "recruitment",
+    "express"
+  ],
   "author": "Muhammad Saad Khan",
   "license": "ISC",
   "dependencies": {
