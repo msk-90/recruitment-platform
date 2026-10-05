@@ -1,4 +1,5 @@
 import express from 'express';
+import userRoutes from './routes/userRoutes.js';
 import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
@@ -10,8 +11,7 @@ import applicationRoutes from './routes/applicationRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 dotenv.config();
-console.log('🔑 JWT_SECRET length:', process.env.JWT_SECRET?.length);
-console.log('🔑 JWT_SECRET first 8:', process.env.JWT_SECRET?.slice(0, 8));
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -20,6 +20,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
 
+app.use('/api/users', userRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
