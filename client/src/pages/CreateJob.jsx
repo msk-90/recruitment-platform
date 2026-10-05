@@ -7,6 +7,7 @@ import Input from '../components/Input';
 import Select from '../components/Select';
 import Textarea from '../components/Textarea';
 import { useAuth } from '../context/AuthContext';
+import { jobService } from '../services/jobService';
 
 export default function CreateJob() {
   const { user } = useAuth();
@@ -18,16 +19,18 @@ export default function CreateJob() {
     type: '',
     salary: '',
     description: '',
+    skills: '',
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [serverError, setServerError] = useState('');
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setErrors({ ...errors, [e.target.name]: '' });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = {};
     if (!form.title) newErrors.title = 'Title is required';
@@ -37,15 +40,27 @@ export default function CreateJob() {
     if (Object.keys(newErrors).length) return setErrors(newErrors);
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      alert('Job created! (API coming Day 6+)');
+    setServerError('');
+
+    try {
+      await jobService.create({
+        ...form,
+        skills: form.skills
+          ? form.skills.split(',').map((s) => s.trim()).filter(Boolean)
+          : [],
+      });
       navigate('/jobs');
-    }, 800);
+    } catch (err) {
+      setServerError(
+        err.response?.data?.message || 'Failed to create job'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <Layout role={user.role}>
+    <Layout role={user?.role}>
       <button
         onClick={() => navigate(-1)}
         className="text-sm text-slate-500 hover:text-slate-700 mb-4"
@@ -56,6 +71,12 @@ export default function CreateJob() {
       <h1 className="text-2xl font-bold text-slate-900">Create Job</h1>
 
       <Card className="mt-6 max-w-2xl">
+        {serverError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-md">
+            {serverError}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             label="Job Title"
@@ -98,13 +119,21 @@ export default function CreateJob() {
             placeholder="$60k–80k"
           />
 
+          <Input
+            label="Skills (comma-separated)"
+            name="skills"
+            value={form.skills}
+            onChange={handleChange}
+            placeholder="React, Node, MongoDB"
+          />
+
           <Textarea
             label="Description"
             name="description"
             value={form.description}
             onChange={handleChange}
             error={errors.description}
-            placeholder="Describe the role, responsibilities, and requirements..."
+            placeholder="Describe the role..."
           />
 
           <div className="flex gap-3">
