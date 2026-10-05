@@ -10,7 +10,8 @@ import applicationRoutes from './routes/applicationRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 dotenv.config();
-
+console.log('🔑 JWT_SECRET length:', process.env.JWT_SECRET?.length);
+console.log('🔑 JWT_SECRET first 8:', process.env.JWT_SECRET?.slice(0, 8));
 const app = express();
 const PORT = process.env.PORT || 5000;
 
