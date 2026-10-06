@@ -11,15 +11,11 @@ export const applyToJob = async (req, res, next) => {
     const { jobId, resume, coverLetter } = req.body;
 
     if (!jobId || !resume) {
-      return res
-        .status(400)
-        .json({ message: 'jobId and resume are required' });
+      return res.status(400).json({ message: 'jobId and resume are required' });
     }
 
     const job = await Job.findById(jobId);
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
+    if (!job) return res.status(404).json({ message: 'Job not found' });
 
     if (job.status !== 'open') {
       return res
@@ -27,7 +23,6 @@ export const applyToJob = async (req, res, next) => {
         .json({ message: 'This job is closed for applications' });
     }
 
-    // Prevent duplicate applications
     const existing = await Application.findOne({
       job: jobId,
       candidate: req.user._id,
@@ -42,11 +37,11 @@ export const applyToJob = async (req, res, next) => {
       job: jobId,
       candidate: req.user._id,
       resume,
-      coverLetter,
+      coverLetter: coverLetter || '',
     });
 
     // Increment applicants count
-    job.applicantsCount += 1;
+    job.applicantsCount = (job.applicantsCount || 0) + 1;
     await job.save();
 
     res.status(201).json(application);
@@ -67,10 +62,8 @@ export const applyToJob = async (req, res, next) => {
  */
 export const getMyApplications = async (req, res, next) => {
   try {
-    const applications = await Application.find({
-      candidate: req.user._id,
-    })
-      .populate('job', 'title company location type status salary')
+    const applications = await Application.find({ candidate: req.user._id })
+      .populate('job', 'title company location type status salary recruiter')
       .sort({ createdAt: -1 });
 
     res.json({ count: applications.length, applications });
@@ -87,10 +80,7 @@ export const getMyApplications = async (req, res, next) => {
 export const getApplicationsForJob = async (req, res, next) => {
   try {
     const job = await Job.findById(req.params.jobId);
-
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
+    if (!job) return res.status(404).json({ message: 'Job not found' });
 
     if (job.recruiter.toString() !== req.user._id.toString()) {
       return res
@@ -111,7 +101,7 @@ export const getApplicationsForJob = async (req, res, next) => {
 /**
  * @desc    Get a single application
  * @route   GET /api/applications/:id
- * @access  Private (candidate owner OR recruiter of the job)
+ * @access  Private (candidate owner OR job recruiter)
  */
 export const getApplicationById = async (req, res, next) => {
   try {
@@ -194,7 +184,6 @@ export const updateApplicationStatus = async (req, res, next) => {
 export const withdrawApplication = async (req, res, next) => {
   try {
     const application = await Application.findById(req.params.id);
-
     if (!application) {
       return res.status(404).json({ message: 'Application not found' });
     }
@@ -205,13 +194,11 @@ export const withdrawApplication = async (req, res, next) => {
         .json({ message: 'Not authorized to withdraw this application' });
     }
 
-    // Decrement the job's applicants count
     await Job.findByIdAndUpdate(application.job, {
       $inc: { applicantsCount: -1 },
     });
 
     await application.deleteOne();
-
     res.json({ message: 'Application withdrawn' });
   } catch (err) {
     next(err);
