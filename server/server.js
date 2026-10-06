@@ -13,6 +13,7 @@ import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 import adminRoutes from './routes/adminRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 
 dotenv.config();
 
@@ -34,6 +35,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/uploads', express.static('uploads'));
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/analytics', analyticsRoutes);
+
 app.get('/', (req, res) => {
   res.json({
     message: 'HireHub API running 🚀',

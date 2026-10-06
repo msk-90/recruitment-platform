@@ -1,289 +1,84 @@
 import { useEffect, useState } from 'react';
-import {
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  Legend,
-} from 'recharts';
 import Layout from '../components/Layout';
 import StatCard from '../components/StatCard';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import DataTable from '../components/DataTable';
+import TrendChart from '../components/TrendChart';
+import FunnelChart from '../components/FunnelChart';
 import { useAuth } from '../context/AuthContext';
+import { analyticsService } from '../services/analyticsService';
 import { dashboardService } from '../services/dashboardService';
-
-const PIE_COLORS = {
-  applied: '#3B82F6',
-  shortlisted: '#F59E0B',
-  interview: '#8B5CF6',
-  hired: '#10B981',
-  rejected: '#EF4444',
-};
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [data, setData] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [recent, setRecent] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [days, setDays] = useState(30);
 
   useEffect(() => {
     const load = async () => {
+      setLoading(true);
       try {
-        const res =
-          user.role === 'recruiter'
-            ? await dashboardService.recruiter()
-            : await dashboardService.candidate();
-        setData(res);
+        if (user.role === 'recruiter') {
+          const [a, d] = await Promise.all([
+            analyticsService.recruiter(days),
+            dashboardService.recruiter(),
+          ]);
+          setAnalytics(a);
+          setRecent(d.recentApplications || []);
+        } else {
+          const d = await dashboardService.candidate();
+          setAnalytics({ metrics: d.stats, funnel: d.pipeline });
+          setRecent(d.recentApplications || []);
+        }
       } catch (err) {
-        setError(
-          err.response?.data?.message || 'Failed to load dashboard data'
-        );
+        console.error(err);
       } finally {
         setLoading(false);
       }
     };
     if (user) load();
-  }, [user]);
+  }, [user, days]);
 
-  if (loading) {
+  if (loading || !analytics) {
     return (
       <Layout role={user?.role}>
-        <p className="text-slate-500">Loading dashboard...</p>
+        <p className="text-slate-500">Loading analytics...</p>
       </Layout>
     );
   }
 
-  if (error) {
-    return (
-      <Layout role={user?.role}>
-        <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-md">
-          {error}
-        </div>
-      </Layout>
-    );
-  }
+  const m = analytics.metrics || {};
 
-  const { stats = {}, pipeline = {}, appsPerDay = [], recentApplications = [] } =
-    data || {};
+  const statCards =
+    user.role === 'recruiter'
+      ? [
+          { label: 'Total Jobs', value: m.totalJobs ?? 0, icon: '💼', color: 'blue' },
+          { label: 'Applications', value: m.totalApplications ?? 0, icon: '📄', color: 'green' },
+          { label: 'Hired', value: m.totalHired ?? 0, icon: '✅', color: 'amber' },
+          { label: 'Hire Rate', value: `${m.hireRate ?? 0}%`, icon: '📈', color: 'purple' },
+        ]
+      : [
+          { label: 'Applications', value: m.totalApplications ?? 0, icon: '📄', color: 'blue' },
+          { label: 'Shortlisted', value: analytics.funnel?.shortlisted ?? 0, icon: '⭐', color: 'amber' },
+          { label: 'Interview', value: analytics.funnel?.interview ?? 0, icon: '🎤', color: 'purple' },
+          { label: 'Hired', value: m.totalHired ?? 0, icon: '✅', color: 'green' },
+        ];
 
-  // Recruiter view
-  if (user.role === 'recruiter') {
-    const statCards = [
-      {
-        label: 'Total Jobs',
-        value: stats.totalJobs ?? 0,
-        icon: '💼',
-        color: 'blue',
-      },
-      {
-        label: 'Applications',
-        value: stats.totalApplications ?? 0,
-        icon: '📄',
-        color: 'green',
-      },
-      {
-        label: 'Candidates',
-        value: stats.uniqueCandidates ?? 0,
-        icon: '👥',
-        color: 'amber',
-      },
-      {
-        label: 'Hired',
-        value: stats.hired ?? 0,
-        icon: '✅',
-        color: 'purple',
-      },
-    ];
-
-    const pieData = Object.entries(pipeline)
-      .filter(([, v]) => v > 0)
-      .map(([name, value]) => ({ name, value }));
-
-    const columns = [
-      {
-        key: 'candidate',
-        label: 'Candidate',
-        render: (row) => (
-          <div>
-            <p className="font-medium text-slate-800">
-              {row.candidate?.name || '—'}
-            </p>
-            <p className="text-xs text-slate-500">
-              {row.candidate?.email || ''}
-            </p>
-          </div>
-        ),
-      },
-      {
-        key: 'job',
-        label: 'Job',
-        render: (row) => row.job?.title || '—',
-      },
-      {
-        key: 'status',
-        label: 'Status',
-        render: (row) => <Badge status={row.status} />,
-      },
-      {
-        key: 'createdAt',
-        label: 'Applied',
-        render: (row) => new Date(row.createdAt).toLocaleDateString(),
-      },
-    ];
-
-    return (
-      <Layout role={user.role}>
-        <h1 className="text-2xl font-bold text-slate-900">
-          Welcome back, {user.name} 👋
-        </h1>
-        <p className="text-slate-500 mt-1">
-          Here's what's happening with your hiring pipeline.
-        </p>
-
-        {/* Stat cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-          {statCards.map((s) => (
-            <StatCard key={s.label} {...s} />
-          ))}
-        </div>
-
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-          <Card>
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">
-              Applications (last 30 days)
-            </h2>
-            {appsPerDay.length === 0 ? (
-              <p className="text-slate-400 text-sm py-8 text-center">
-                No applications yet.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={appsPerDay}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                  <XAxis
-                    dataKey="_id"
-                    tick={{ fontSize: 12, fill: '#64748B' }}
-                    tickFormatter={(d) => d.slice(5)}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 12, fill: '#64748B' }}
-                    allowDecimals={false}
-                  />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="count"
-                    stroke="#2563EB"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 5 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-
-          <Card>
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">
-              Pipeline Breakdown
-            </h2>
-            {pieData.length === 0 ? (
-              <p className="text-slate-400 text-sm py-8 text-center">
-                No data yet.
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={55}
-                    outerRadius={90}
-                    paddingAngle={2}
-                  >
-                    {pieData.map((entry, i) => (
-                      <Cell
-                        key={i}
-                        fill={PIE_COLORS[entry.name] || '#94A3B8'}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend
-                    verticalAlign="bottom"
-                    iconType="circle"
-                    wrapperStyle={{ fontSize: 12 }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-        </div>
-
-        {/* Recent applications */}
-        <Card className="mt-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">
-            Recent Applications
-          </h2>
-          <DataTable
-            columns={columns}
-            data={recentApplications}
-            emptyMessage="No applications yet."
-          />
-        </Card>
-      </Layout>
-    );
-  }
-
-  // Candidate view
-  const candidateStats = [
+  const columns = [
     {
-      label: 'Applications',
-      value: stats.totalApplications ?? 0,
-      icon: '📄',
-      color: 'blue',
-    },
-    {
-      label: 'Shortlisted',
-      value: stats.shortlisted ?? 0,
-      icon: '⭐',
-      color: 'amber',
-    },
-    {
-      label: 'Interviews',
-      value: stats.interview ?? 0,
-      icon: '🎤',
-      color: 'purple',
-    },
-    {
-      label: 'Hired',
-      value: stats.hired ?? 0,
-      icon: '✅',
-      color: 'green',
-    },
-  ];
-
-  const candidateColumns = [
-    {
-      key: 'job',
-      label: 'Job',
+      key: 'candidate',
+      label: 'Candidate',
       render: (row) => (
         <div>
-          <p className="font-medium text-slate-800">{row.job?.title || '—'}</p>
-          <p className="text-xs text-slate-500">{row.job?.company || ''}</p>
+          <p className="font-medium text-slate-800">{row.candidate?.name}</p>
+          <p className="text-xs text-slate-500">{row.candidate?.email}</p>
         </div>
       ),
     },
+    { key: 'job', label: 'Job', render: (row) => row.job?.title || '—' },
     {
       key: 'status',
       label: 'Status',
@@ -297,26 +92,91 @@ export default function Dashboard() {
   ];
 
   return (
-    <Layout role={user.role}>
-      <h1 className="text-2xl font-bold text-slate-900">
-        Welcome back, {user.name} 👋
-      </h1>
-      <p className="text-slate-500 mt-1">Track your job applications here.</p>
+    <Layout role={user?.role}>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Welcome back, {user.name} 👋
+          </h1>
+          <p className="text-slate-500 mt-1">
+            {user.role === 'recruiter'
+              ? 'Your hiring pipeline at a glance.'
+              : 'Track your job search progress.'}
+          </p>
+        </div>
 
+        <select
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+          className="px-3 py-2 border border-slate-300 rounded-md bg-white text-sm"
+        >
+          <option value={7}>Last 7 days</option>
+          <option value={30}>Last 30 days</option>
+          <option value={90}>Last 90 days</option>
+        </select>
+      </div>
+
+      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-        {candidateStats.map((s) => (
+        {statCards.map((s) => (
           <StatCard key={s.label} {...s} />
         ))}
       </div>
 
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+        <Card>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">
+            Applications Over Time
+          </h2>
+          <TrendChart
+            data={analytics.appsPerDay || []}
+            label="Applications"
+            color="#2563EB"
+          />
+        </Card>
+
+        <Card>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">
+            Hiring Funnel
+          </h2>
+          <FunnelChart funnel={analytics.funnel || {}} />
+        </Card>
+      </div>
+
+      {/* Top jobs (recruiter) */}
+      {user.role === 'recruiter' && analytics.topJobs?.length > 0 && (
+        <Card className="mt-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">
+            Top Jobs by Applications
+          </h2>
+          <div className="space-y-3">
+            {analytics.topJobs.map((j) => (
+              <div key={j.jobId} className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-slate-800">{j.title}</p>
+                  <p className="text-xs text-slate-500">
+                    {j.hired} hired · {j.rejected} rejected
+                  </p>
+                </div>
+                <span className="text-sm font-semibold text-slate-700">
+                  {j.total} app{j.total === 1 ? '' : 's'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Recent */}
       <Card className="mt-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">
           Recent Applications
         </h2>
         <DataTable
-          columns={candidateColumns}
-          data={recentApplications}
-          emptyMessage="You haven't applied to any jobs yet."
+          columns={columns}
+          data={recent}
+          emptyMessage="No applications yet."
         />
       </Card>
     </Layout>
