@@ -1,5 +1,6 @@
 import Application from '../models/Application.js';
 import Job from '../models/Job.js';
+import createNotification from '../utils/createNotification.js';
 
 /**
  * @desc    Apply to a job
@@ -43,6 +44,16 @@ export const applyToJob = async (req, res, next) => {
     // Increment applicants count
     job.applicantsCount = (job.applicantsCount || 0) + 1;
     await job.save();
+
+    // Notify the recruiter
+    await createNotification({
+      recipient: job.recruiter,
+      sender: req.user._id,
+      type: 'application_received',
+      title: 'New Application',
+      message: `${req.user.name} applied for "${job.title}"`,
+      link: `/jobs/${job._id}/applicants`,
+    });
 
     res.status(201).json(application);
   } catch (err) {
@@ -166,9 +177,23 @@ export const updateApplicationStatus = async (req, res, next) => {
         .json({ message: 'Not authorized to update this application' });
     }
 
+    const previousStatus = application.status;
+
     application.status = status;
     if (notes !== undefined) application.notes = notes;
     await application.save();
+
+    // Notify candidate only if status actually changed
+    if (previousStatus !== status) {
+      await createNotification({
+        recipient: application.candidate,
+        sender: req.user._id,
+        type: 'status_updated',
+        title: 'Application Update',
+        message: `Your application for "${application.job.title}" is now ${status}`,
+        link: '/applications',
+      });
+    }
 
     res.json(application);
   } catch (err) {
@@ -194,9 +219,24 @@ export const withdrawApplication = async (req, res, next) => {
         .json({ message: 'Not authorized to withdraw this application' });
     }
 
+    // Load job BEFORE deleting so we know the recruiter + title
+    const job = await Job.findById(application.job);
+
     await Job.findByIdAndUpdate(application.job, {
       $inc: { applicantsCount: -1 },
     });
+
+    // Notify recruiter before deleting
+    if (job) {
+      await createNotification({
+        recipient: job.recruiter,
+        sender: req.user._id,
+        type: 'application_withdrawn',
+        title: 'Application Withdrawn',
+        message: `${req.user.name} withdrew their application for "${job.title}"`,
+        link: `/jobs/${job._id}/applicants`,
+      });
+    }
 
     await application.deleteOne();
     res.json({ message: 'Application withdrawn' });
