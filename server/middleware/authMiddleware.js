@@ -2,13 +2,12 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
 /**
- * Verify JWT and attach user to req.user
- * Use on any route that requires authentication.
+ * Verify JWT and attach user to req.user.
+ * Also blocks banned users.
  */
 export const protect = async (req, res, next) => {
   let token;
 
-  // Accept token from Authorization header: "Bearer <token>"
   if (
     req.headers.authorization &&
     req.headers.authorization.startsWith('Bearer ')
@@ -22,17 +21,28 @@ export const protect = async (req, res, next) => {
         return res.status(401).json({ message: 'User no longer exists' });
       }
 
+      if (req.user.banned) {
+        return res
+          .status(403)
+          .json({ message: 'Your account has been suspended' });
+      }
+
       return next();
     } catch (err) {
-      return res.status(401).json({ message: 'Not authorized — invalid token' });
+      return res
+        .status(401)
+        .json({ message: 'Not authorized - invalid token' });
     }
   }
 
-  return res.status(401).json({ message: 'Not authorized — no token provided' });
+  return res
+    .status(401)
+    .json({ message: 'Not authorized - no token provided' });
 };
 
 /**
- * Role-based access: authorize('recruiter') or authorize('recruiter', 'admin')
+ * Role-based access.
+ * Usage: authorize('recruiter') or authorize('recruiter', 'admin')
  * Must be used AFTER protect.
  */
 export const authorize = (...roles) => {

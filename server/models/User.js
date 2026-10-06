@@ -26,13 +26,17 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['recruiter', 'candidate'],
+      enum: ['admin', 'recruiter', 'candidate'],
       required: [true, 'Role is required'],
     },
     phone: {
       type: String,
       trim: true,
     },
+    banned: {
+  type: Boolean,
+  default: false,
+},
 
     // Recruiter-specific
     company: {
