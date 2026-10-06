@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Badge from '../components/Badge';
 import Button from '../components/Button';
+import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { jobService } from '../services/jobService';
 
@@ -11,9 +12,12 @@ export default function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -28,6 +32,17 @@ export default function JobDetail() {
     };
     load();
   }, [id]);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await jobService.remove(job._id);
+      navigate('/jobs');
+    } catch (err) {
+      alert(err.response?.data?.message || 'Delete failed');
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -48,7 +63,7 @@ export default function JobDetail() {
     );
   }
 
-  const isOwner = user?._id === job.recruiter?._id;
+  const isOwner = user?.role === 'recruiter' && job.recruiter?._id === user._id;
 
   return (
     <Layout role={user?.role}>
@@ -69,6 +84,10 @@ export default function JobDetail() {
             <p className="text-sm text-slate-500 mt-2">
               {job.location} · {job.type}
               {job.salary && ` · ${job.salary}`}
+            </p>
+            <p className="text-sm text-slate-500 mt-1">
+              {job.applicantsCount || 0} applicant
+              {(job.applicantsCount || 0) === 1 ? '' : 's'}
             </p>
           </div>
           <Badge status={job.status} />
@@ -105,27 +124,34 @@ export default function JobDetail() {
           </div>
         )}
 
-        {user?.role === 'recruiter' && isOwner && (
-          <div className="mt-8 flex gap-2">
+        {isOwner && (
+          <div className="mt-8 flex flex-wrap gap-2">
             <Button
               variant="secondary"
               onClick={() => navigate(`/jobs/${job._id}/applicants`)}
             >
-              View Applicants ({job.applicantsCount})
+              View Applicants ({job.applicantsCount || 0})
             </Button>
-            <Button
-              variant="danger"
-              onClick={async () => {
-                if (!window.confirm('Delete this job?')) return;
-                await jobService.remove(job._id);
-                navigate('/jobs');
-              }}
-            >
+            <Button onClick={() => navigate(`/jobs/${job._id}/edit`)}>
+              Edit
+            </Button>
+            <Button variant="danger" onClick={() => setConfirmDelete(true)}>
               Delete
             </Button>
           </div>
         )}
       </Card>
+
+      <ConfirmModal
+        open={confirmDelete}
+        title="Delete this job?"
+        message={`"${job.title}" and all applications will be permanently removed.`}
+        confirmText="Delete"
+        variant="danger"
+        loading={deleting}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={handleDelete}
+      />
     </Layout>
   );
 }

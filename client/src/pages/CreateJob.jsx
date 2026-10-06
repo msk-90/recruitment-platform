@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -12,6 +12,8 @@ import { jobService } from '../services/jobService';
 export default function CreateJob() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { id } = useParams(); // if present → edit mode
+  const isEdit = Boolean(id);
 
   const [form, setForm] = useState({
     title: '',
@@ -20,44 +22,101 @@ export default function CreateJob() {
     salary: '',
     description: '',
     skills: '',
+    status: 'open',
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(isEdit);
   const [serverError, setServerError] = useState('');
+
+  // If editing → load the job first
+  useEffect(() => {
+    if (!isEdit) return;
+    const load = async () => {
+      try {
+        const job = await jobService.getById(id);
+
+        // Ownership check
+        if (job.recruiter?._id !== user._id) {
+          setServerError('You are not authorized to edit this job.');
+          setFetching(false);
+          return;
+        }
+
+        setForm({
+          title: job.title || '',
+          location: job.location || '',
+          type: job.type || '',
+          salary: job.salary || '',
+          description: job.description || '',
+          skills: Array.isArray(job.skills) ? job.skills.join(', ') : '',
+          status: job.status || 'open',
+        });
+      } catch (err) {
+        setServerError(err.response?.data?.message || 'Failed to load job');
+      } finally {
+        setFetching(false);
+      }
+    };
+    load();
+  }, [id, isEdit, user._id]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     setErrors({ ...errors, [e.target.name]: '' });
+    setServerError('');
+  };
+
+  const validate = () => {
+    const e = {};
+    if (!form.title.trim()) e.title = 'Title is required';
+    if (!form.location.trim()) e.location = 'Location is required';
+    if (!form.type) e.type = 'Type is required';
+    if (!form.description.trim()) e.description = 'Description is required';
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const newErrors = {};
-    if (!form.title) newErrors.title = 'Title is required';
-    if (!form.location) newErrors.location = 'Location is required';
-    if (!form.type) newErrors.type = 'Type is required';
-    if (!form.description) newErrors.description = 'Description is required';
-    if (Object.keys(newErrors).length) return setErrors(newErrors);
+    if (!validate()) return;
 
     setLoading(true);
     setServerError('');
 
+    const payload = {
+      ...form,
+      skills: form.skills
+        ? form.skills
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [],
+    };
+
     try {
-      await jobService.create({
-        ...form,
-        skills: form.skills
-          ? form.skills.split(',').map((s) => s.trim()).filter(Boolean)
-          : [],
-      });
+      if (isEdit) {
+        await jobService.update(id, payload);
+      } else {
+        await jobService.create(payload);
+      }
       navigate('/jobs');
     } catch (err) {
       setServerError(
-        err.response?.data?.message || 'Failed to create job'
+        err.response?.data?.message || (isEdit ? 'Update failed' : 'Create failed')
       );
     } finally {
       setLoading(false);
     }
   };
+
+  if (fetching) {
+    return (
+      <Layout role={user?.role}>
+        <p className="text-slate-500">Loading job...</p>
+      </Layout>
+    );
+  }
 
   return (
     <Layout role={user?.role}>
@@ -68,7 +127,9 @@ export default function CreateJob() {
         ← Back
       </button>
 
-      <h1 className="text-2xl font-bold text-slate-900">Create Job</h1>
+      <h1 className="text-2xl font-bold text-slate-900">
+        {isEdit ? 'Edit Job' : 'Create Job'}
+      </h1>
 
       <Card className="mt-6 max-w-2xl">
         {serverError && (
@@ -94,7 +155,7 @@ export default function CreateJob() {
               value={form.location}
               onChange={handleChange}
               error={errors.location}
-              placeholder="Remote / On-site"
+              placeholder="Remote / On-site / Hybrid"
             />
             <Select
               label="Type"
@@ -111,13 +172,25 @@ export default function CreateJob() {
             />
           </div>
 
-          <Input
-            label="Salary Range"
-            name="salary"
-            value={form.salary}
-            onChange={handleChange}
-            placeholder="$60k–80k"
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Salary Range"
+              name="salary"
+              value={form.salary}
+              onChange={handleChange}
+              placeholder="$60k–80k"
+            />
+            <Select
+              label="Status"
+              name="status"
+              value={form.status}
+              onChange={handleChange}
+              options={[
+                { value: 'open', label: 'Open' },
+                { value: 'closed', label: 'Closed' },
+              ]}
+            />
+          </div>
 
           <Input
             label="Skills (comma-separated)"
@@ -133,17 +206,17 @@ export default function CreateJob() {
             value={form.description}
             onChange={handleChange}
             error={errors.description}
-            placeholder="Describe the role..."
+            placeholder="Describe the role, responsibilities, and requirements..."
           />
 
           <div className="flex gap-3">
             <Button type="submit" loading={loading}>
-              Create Job
+              {isEdit ? 'Save Changes' : 'Create Job'}
             </Button>
             <Button
               type="button"
               variant="secondary"
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/jobs')}
             >
               Cancel
             </Button>

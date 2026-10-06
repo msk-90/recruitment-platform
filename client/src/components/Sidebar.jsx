@@ -4,6 +4,7 @@ export default function Sidebar({ role = 'recruiter', collapsed = false }) {
   const recruiterLinks = [
     { label: 'Dashboard', to: '/dashboard', icon: '📊' },
     { label: 'Jobs', to: '/jobs', icon: '💼' },
+    { label: 'Create Job', to: '/jobs/create', icon: '➕' },
     { label: 'Candidates', to: '/candidates', icon: '👥' },
     { label: 'Profile', to: '/profile', icon: '👤' },
   ];
@@ -27,6 +28,7 @@ export default function Sidebar({ role = 'recruiter', collapsed = false }) {
           <NavLink
             key={l.to}
             to={l.to}
+            end={l.to === '/jobs'}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition ${
                 isActive

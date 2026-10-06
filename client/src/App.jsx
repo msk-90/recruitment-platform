@@ -10,14 +10,17 @@ import Apply from './pages/Apply';
 import Applications from './pages/Applications';
 import Candidates from './pages/Candidates';
 import Profile from './pages/Profile';
+import JobApplicants from './pages/JobApplicants';
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          {/* Public */}
           <Route path="/" element={<Login />} />
 
+          {/* Dashboard */}
           <Route
             path="/dashboard"
             element={
@@ -26,19 +29,29 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/jobs"
-            element={
-              <ProtectedRoute>
-                <Jobs />
-              </ProtectedRoute>
-            }
-          />
+
+          {/* Jobs — specific routes first */}
           <Route
             path="/jobs/create"
             element={
               <ProtectedRoute>
                 <CreateJob />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/jobs/:id/edit"
+            element={
+              <ProtectedRoute>
+                <CreateJob />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/jobs/:id/applicants"
+            element={
+              <ProtectedRoute>
+                <JobApplicants />
               </ProtectedRoute>
             }
           />
@@ -50,6 +63,16 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/jobs"
+            element={
+              <ProtectedRoute>
+                <Jobs />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Applications */}
           <Route
             path="/apply/:id"
             element={
@@ -66,6 +89,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Candidates */}
           <Route
             path="/candidates"
             element={
@@ -74,6 +99,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Profile */}
           <Route
             path="/profile"
             element={
