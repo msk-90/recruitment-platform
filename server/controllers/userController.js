@@ -44,7 +44,8 @@ export const updateMyProfile = async (req, res, next) => {
       const existing = await User.findOne({
         email: req.body.email.toLowerCase(),
       });
-      if (existing) return res.status(409).json({ message: 'Email already in use' });
+      if (existing)
+        return res.status(409).json({ message: 'Email already in use' });
       user.email = req.body.email;
     }
 
@@ -69,10 +70,57 @@ export const updateMyProfile = async (req, res, next) => {
 };
 
 /**
+ * @desc    Change own password
+ * @route   PUT /api/users/me/password
+ * @access  Private
+ */
+export const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: 'currentPassword and newPassword are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ message: 'New password must be at least 6 characters' });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        message: 'New password must be different from current password',
+      });
+    }
+
+    // Select password explicitly (schema has select: false)
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const matches = await user.matchPassword(currentPassword);
+    if (!matches) {
+      return res
+        .status(401)
+        .json({ message: 'Current password is incorrect' });
+    }
+
+    user.password = newPassword; // pre-save hook will hash
+    await user.save();
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * @desc    List all candidates with filters
  * @route   GET /api/users/candidates
  * @access  Private (recruiter only)
- * @query   search, skill, experience, sort
+ * @query   search, skill, experience, sort, minApplications
  */
 export const listCandidates = async (req, res, next) => {
   try {
@@ -123,7 +171,7 @@ export const listCandidates = async (req, res, next) => {
       })
     );
 
-    // Post-filter by minApplications (client-side since it's computed)
+    // Post-filter by minApplications (computed client-side)
     if (minApplications) {
       const min = Number(minApplications);
       candidatesWithStats = candidatesWithStats.filter(
@@ -131,7 +179,7 @@ export const listCandidates = async (req, res, next) => {
       );
     }
 
-    // If sorting by applications, do it now (was computed)
+    // If sorting by applications, do it now (was computed above)
     if (sort === 'applications') {
       candidatesWithStats.sort(
         (a, b) => b.applicationsCount - a.applicationsCount
@@ -172,8 +220,10 @@ export const getCandidateProfile = async (req, res, next) => {
       applications,
       stats: {
         total: applications.length,
-        shortlisted: applications.filter((a) => a.status === 'shortlisted').length,
-        interview: applications.filter((a) => a.status === 'interview').length,
+        shortlisted: applications.filter((a) => a.status === 'shortlisted')
+          .length,
+        interview: applications.filter((a) => a.status === 'interview')
+          .length,
         hired: applications.filter((a) => a.status === 'hired').length,
         rejected: applications.filter((a) => a.status === 'rejected').length,
       },

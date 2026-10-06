@@ -1,4 +1,5 @@
 import express from 'express';
+import { body } from 'express-validator';
 import {
   applyToJob,
   getMyApplications,
@@ -8,35 +9,40 @@ import {
   withdrawApplication,
 } from '../controllers/applicationController.js';
 import { protect, authorize } from '../middleware/authMiddleware.js';
+import { validate } from '../middleware/validateMiddleware.js';
 
 const router = express.Router();
 
-// Candidate: apply
-router.post('/', protect, authorize('candidate'), applyToJob);
-
-// Candidate: my applications
-router.get('/me', protect, authorize('candidate'), getMyApplications);
-
-// Recruiter: applications for a specific job
-router.get(
-  '/job/:jobId',
+router.post(
+  '/',
   protect,
-  authorize('recruiter'),
-  getApplicationsForJob
+  authorize('candidate'),
+  [
+    body('jobId').isMongoId().withMessage('Valid job ID required'),
+    body('resume').trim().notEmpty().withMessage('Resume is required'),
+    body('coverLetter').optional().isLength({ max: 2000 }),
+  ],
+  validate,
+  applyToJob
 );
 
-// Single application (owner candidate OR job recruiter)
+router.get('/me', protect, authorize('candidate'), getMyApplications);
+router.get('/job/:jobId', protect, authorize('recruiter'), getApplicationsForJob);
 router.get('/:id', protect, getApplicationById);
 
-// Recruiter: update status
 router.put(
   '/:id/status',
   protect,
   authorize('recruiter'),
+  [
+    body('status')
+      .isIn(['applied', 'shortlisted', 'interview', 'hired', 'rejected'])
+      .withMessage('Invalid status'),
+  ],
+  validate,
   updateApplicationStatus
 );
 
-// Candidate: withdraw
 router.delete('/:id', protect, authorize('candidate'), withdrawApplication);
 
 export default router;
