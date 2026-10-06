@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import Card from '../components/Card';
 import Button from '../components/Button';
+import SearchBar from '../components/SearchBar';
 import { useAuth } from '../context/AuthContext';
 import { userService } from '../services/userService';
+
+const SORT_OPTIONS = [
+  { value: 'recent', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'name', label: 'Name A–Z' },
+  { value: 'name-desc', label: 'Name Z–A' },
+  { value: 'applications', label: 'Most applications' },
+];
 
 export default function Candidates() {
   const { user } = useAuth();
@@ -13,19 +22,27 @@ export default function Candidates() {
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
-  const [search, setSearch] = useState('');
-  const [skill, setSkill] = useState('');
-  const [sort, setSort] = useState('recent');
+  const [filters, setFilters] = useState({
+    search: '',
+    skill: '',
+    experience: '',
+    sort: 'recent',
+    minApplications: '',
+  });
 
-  const loadCandidates = async () => {
+  const load = async () => {
     try {
       setLoading(true);
       setError('');
       const params = {};
-      if (search) params.search = search;
-      if (skill) params.skill = skill;
-      if (sort !== 'recent') params.sort = sort;
+      if (filters.search) params.search = filters.search;
+      if (filters.skill) params.skill = filters.skill;
+      if (filters.experience) params.experience = filters.experience;
+      if (filters.minApplications)
+        params.minApplications = filters.minApplications;
+      if (filters.sort !== 'recent') params.sort = filters.sort;
 
       const data = await userService.listCandidates(params);
       setCandidates(data.candidates || []);
@@ -37,71 +54,129 @@ export default function Candidates() {
   };
 
   useEffect(() => {
-    loadCandidates();
+    load();
     // eslint-disable-next-line
-  }, []);
+  }, [filters]);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    loadCandidates();
-  };
+  const resetFilters = () =>
+    setFilters({
+      search: '',
+      skill: '',
+      experience: '',
+      sort: 'recent',
+      minApplications: '',
+    });
+
+  const activeFilterCount = [
+    filters.skill,
+    filters.experience,
+    filters.minApplications,
+  ].filter(Boolean).length;
 
   return (
     <Layout role={user?.role}>
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Candidates</h1>
-          <p className="text-slate-500 mt-1">
-            Browse candidates registered on the platform.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Candidates</h1>
+        <p className="text-slate-500 mt-1">
+          {candidates.length} candidate{candidates.length === 1 ? '' : 's'} found
+        </p>
       </div>
 
-      {/* Filters */}
-      <Card className="mt-6">
-        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="md:col-span-2">
-            <input
-              type="text"
-              placeholder="Search by name, email, or bio..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
-            />
+      {/* Search + filters */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <SearchBar
+          placeholder="Search by name, email, or bio..."
+          value={filters.search}
+          onChange={(v) => setFilters({ ...filters, search: v })}
+          className="flex-1 min-w-[240px]"
+        />
+
+        <Button
+          variant="secondary"
+          onClick={() => setShowFilters(!showFilters)}
+        >
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full">
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
+
+        <select
+          value={filters.sort}
+          onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
+          className="px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+        >
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {showFilters && (
+        <Card className="mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Skill
+              </label>
+              <input
+                type="text"
+                value={filters.skill}
+                onChange={(e) =>
+                  setFilters({ ...filters, skill: e.target.value })
+                }
+                placeholder="e.g. React"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Experience
+              </label>
+              <input
+                type="text"
+                value={filters.experience}
+                onChange={(e) =>
+                  setFilters({ ...filters, experience: e.target.value })
+                }
+                placeholder="e.g. 3 yrs"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Min applications
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={filters.minApplications}
+                onChange={(e) =>
+                  setFilters({ ...filters, minApplications: e.target.value })
+                }
+                placeholder="e.g. 1"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+
+            <div className="flex items-end">
+              <Button
+                variant="secondary"
+                onClick={resetFilters}
+                className="w-full"
+              >
+                Reset Filters
+              </Button>
+            </div>
           </div>
-          <input
-            type="text"
-            placeholder="Skill (e.g. React)"
-            value={skill}
-            onChange={(e) => setSkill(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            className="px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-          >
-            <option value="recent">Most recent</option>
-            <option value="oldest">Oldest first</option>
-            <option value="name">Name A–Z</option>
-          </select>
-          <div className="md:col-span-4 flex gap-2">
-            <Button type="submit">Apply Filters</Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setSearch('');
-                setSkill('');
-                setSort('recent');
-                setTimeout(loadCandidates, 0);
-              }}
-            >
-              Reset
-            </Button>
-          </div>
-        </form>
-      </Card>
+        </Card>
+      )}
 
       {/* List */}
       <div className="mt-6">
@@ -115,7 +190,9 @@ export default function Candidates() {
 
         {!loading && candidates.length === 0 && (
           <div className="text-center py-12 text-slate-400">
-            No candidates found.
+            {filters.search || activeFilterCount > 0
+              ? 'No candidates match your filters.'
+              : 'No candidates registered yet.'}
           </div>
         )}
 

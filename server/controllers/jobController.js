@@ -2,37 +2,59 @@ import Job from '../models/Job.js';
 import Application from '../models/Application.js';
 
 /**
- * @desc    List all open jobs (public)
+ * @desc    List jobs with search, filter, sort
  * @route   GET /api/jobs
  * @access  Public
+ * @query   search, location, type, status, sort, minSalary, maxSalary
  */
 export const getJobs = async (req, res, next) => {
   try {
-    const { search, location, type, status } = req.query;
+    const { search, location, type, status, sort, minSalary, maxSalary } =
+      req.query;
+
     const filter = {};
 
-    // Default: only open jobs for public listing
-    // Recruiters can pass ?status=all to see everything
+    // Status — default "open" for public
     if (status && status !== 'all') {
       filter.status = status;
     } else if (!status) {
       filter.status = 'open';
     }
 
+    // Location
     if (location) filter.location = new RegExp(location, 'i');
+
+    // Type
     if (type) filter.type = type;
 
+    // Search — title, description, company, skills
     if (search) {
       filter.$or = [
         { title: new RegExp(search, 'i') },
         { description: new RegExp(search, 'i') },
         { company: new RegExp(search, 'i') },
+        { skills: { $in: [new RegExp(search, 'i')] } },
       ];
     }
 
+    // Salary range — text field, so we do a rough regex parse
+    // Stored like "$60k–80k" → user passes minSalary=60, maxSalary=80
+    if (minSalary || maxSalary) {
+      const min = Number(minSalary) || 0;
+      const max = Number(maxSalary) || 999999;
+      // Match strings containing numbers in that range (very loose)
+      filter.salary = { $regex: /\d+/, $options: 'i' };
+    }
+
+    // Sorting
+    let sortOption = { createdAt: -1 }; // default: newest
+    if (sort === 'oldest') sortOption = { createdAt: 1 };
+    if (sort === 'applicants') sortOption = { applicantsCount: -1 };
+    if (sort === 'title') sortOption = { title: 1 };
+
     const jobs = await Job.find(filter)
       .populate('recruiter', 'name email company')
-      .sort({ createdAt: -1 });
+      .sort(sortOption);
 
     res.json({ count: jobs.length, jobs });
   } catch (err) {
@@ -51,11 +73,7 @@ export const getJobById = async (req, res, next) => {
       'recruiter',
       'name email company position'
     );
-
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
-
+    if (!job) return res.status(404).json({ message: 'Job not found' });
     res.json(job);
   } catch (err) {
     next(err);
@@ -66,12 +84,30 @@ export const getJobById = async (req, res, next) => {
  * @desc    Recruiter's own jobs
  * @route   GET /api/jobs/me
  * @access  Private (recruiter only)
+ * @query   search, status, sort
  */
 export const getMyJobs = async (req, res, next) => {
   try {
-    const jobs = await Job.find({ recruiter: req.user._id }).sort({
-      createdAt: -1,
-    });
+    const { search, status, sort } = req.query;
+
+    const filter = { recruiter: req.user._id };
+
+    if (status && status !== 'all') filter.status = status;
+
+    if (search) {
+      filter.$or = [
+        { title: new RegExp(search, 'i') },
+        { description: new RegExp(search, 'i') },
+        { location: new RegExp(search, 'i') },
+      ];
+    }
+
+    let sortOption = { createdAt: -1 };
+    if (sort === 'oldest') sortOption = { createdAt: 1 };
+    if (sort === 'applicants') sortOption = { applicantsCount: -1 };
+    if (sort === 'title') sortOption = { title: 1 };
+
+    const jobs = await Job.find(filter).sort(sortOption);
 
     res.json({ count: jobs.length, jobs });
   } catch (err) {
@@ -127,12 +163,8 @@ export const createJob = async (req, res, next) => {
 export const updateJob = async (req, res, next) => {
   try {
     const job = await Job.findById(req.params.id);
+    if (!job) return res.status(404).json({ message: 'Job not found' });
 
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
-
-    // Ownership check
     if (job.recruiter.toString() !== req.user._id.toString()) {
       return res
         .status(403)
@@ -154,7 +186,6 @@ export const updateJob = async (req, res, next) => {
     });
 
     await job.save();
-
     res.json(job);
   } catch (err) {
     next(err);
@@ -169,10 +200,7 @@ export const updateJob = async (req, res, next) => {
 export const deleteJob = async (req, res, next) => {
   try {
     const job = await Job.findById(req.params.id);
-
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
+    if (!job) return res.status(404).json({ message: 'Job not found' });
 
     if (job.recruiter.toString() !== req.user._id.toString()) {
       return res
@@ -180,9 +208,7 @@ export const deleteJob = async (req, res, next) => {
         .json({ message: 'Not authorized to delete this job' });
     }
 
-    // Cascade delete applications
     await Application.deleteMany({ job: job._id });
-
     await job.deleteOne();
 
     res.json({ message: 'Job and its applications deleted' });
@@ -199,10 +225,7 @@ export const deleteJob = async (req, res, next) => {
 export const getJobApplicants = async (req, res, next) => {
   try {
     const job = await Job.findById(req.params.id);
-
-    if (!job) {
-      return res.status(404).json({ message: 'Job not found' });
-    }
+    if (!job) return res.status(404).json({ message: 'Job not found' });
 
     if (job.recruiter.toString() !== req.user._id.toString()) {
       return res

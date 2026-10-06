@@ -3,20 +3,40 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import JobCard from '../components/JobCard';
 import Button from '../components/Button';
+import Card from '../components/Card';
+import SearchBar from '../components/SearchBar';
 import ConfirmModal from '../components/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { jobService } from '../services/jobService';
 
+const JOB_TYPES = ['', 'Full-time', 'Part-time', 'Contract', 'Internship'];
+const STATUS_OPTIONS = ['', 'open', 'closed'];
+const SORT_OPTIONS = [
+  { value: 'newest', label: 'Newest first' },
+  { value: 'oldest', label: 'Oldest first' },
+  { value: 'applicants', label: 'Most applicants' },
+  { value: 'title', label: 'Title A–Z' },
+];
+
 export default function Jobs() {
   const { user } = useAuth();
   const navigate = useNavigate();
+
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [mine, setMine] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [deletingLoading, setDeletingLoading] = useState(false);
+
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    search: '',
+    location: '',
+    type: '',
+    status: '',
+    sort: 'newest',
+  });
+  const [mine, setMine] = useState(false);
 
   const loadJobs = async () => {
     try {
@@ -25,9 +45,18 @@ export default function Jobs() {
 
       let data;
       if (mine && user?.role === 'recruiter') {
-        data = await jobService.myJobs();
+        const params = {};
+        if (filters.search) params.search = filters.search;
+        if (filters.status) params.status = filters.status;
+        if (filters.sort && filters.sort !== 'newest') params.sort = filters.sort;
+        data = await jobService.myJobs(params);
       } else {
-        const params = search ? { search } : {};
+        const params = {};
+        if (filters.search) params.search = filters.search;
+        if (filters.location) params.location = filters.location;
+        if (filters.type) params.type = filters.type;
+        if (filters.status) params.status = filters.status;
+        if (filters.sort && filters.sort !== 'newest') params.sort = filters.sort;
         data = await jobService.list(params);
       }
 
@@ -42,12 +71,7 @@ export default function Jobs() {
   useEffect(() => {
     loadJobs();
     // eslint-disable-next-line
-  }, [mine]);
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    loadJobs();
-  };
+  }, [filters, mine]);
 
   const confirmDelete = async () => {
     if (!deleting) return;
@@ -63,7 +87,22 @@ export default function Jobs() {
     }
   };
 
+  const resetFilters = () => {
+    setFilters({
+      search: '',
+      location: '',
+      type: '',
+      status: '',
+      sort: 'newest',
+    });
+  };
+
   const isMine = (job) => job.recruiter?._id === user?._id;
+  const activeFilterCount = [
+    filters.location,
+    filters.type,
+    filters.status,
+  ].filter(Boolean).length;
 
   return (
     <Layout role={user?.role}>
@@ -74,21 +113,38 @@ export default function Jobs() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <form onSubmit={handleSearch} className="flex gap-2 flex-1 min-w-[240px]">
-          <input
-            type="text"
-            placeholder="Search jobs..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={mine}
-          />
-          <Button type="submit" variant="secondary" disabled={mine}>
-            Search
-          </Button>
-        </form>
+      {/* Search + filter toggle */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <SearchBar
+          placeholder="Search jobs by title, company, skill..."
+          value={filters.search}
+          onChange={(v) => setFilters({ ...filters, search: v })}
+          className="flex-1 min-w-[240px]"
+        />
+
+        <Button
+          variant="secondary"
+          onClick={() => setShowFilters(!showFilters)}
+        >
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 text-blue-600 rounded-full">
+              {activeFilterCount}
+            </span>
+          )}
+        </Button>
+
+        <select
+          value={filters.sort}
+          onChange={(e) => setFilters({ ...filters, sort: e.target.value })}
+          className="px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+        >
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
 
         {user?.role === 'recruiter' && (
           <label className="flex items-center gap-2 text-sm text-slate-600">
@@ -103,6 +159,76 @@ export default function Jobs() {
         )}
       </div>
 
+      {/* Expanded filter panel */}
+      {showFilters && (
+        <Card className="mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Location
+              </label>
+              <input
+                type="text"
+                value={filters.location}
+                onChange={(e) =>
+                  setFilters({ ...filters, location: e.target.value })
+                }
+                placeholder="Remote, On-site..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Type
+              </label>
+              <select
+                value={filters.type}
+                onChange={(e) =>
+                  setFilters({ ...filters, type: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+              >
+                {JOB_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t || 'Any'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Status
+              </label>
+              <select
+                value={filters.status}
+                onChange={(e) =>
+                  setFilters({ ...filters, status: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s || 'Any'}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-end">
+              <Button
+                variant="secondary"
+                onClick={resetFilters}
+                className="w-full"
+              >
+                Reset Filters
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* List */}
       <div className="mt-6">
         {loading && <p className="text-slate-500">Loading jobs...</p>}
@@ -115,9 +241,11 @@ export default function Jobs() {
 
         {!loading && jobs.length === 0 && (
           <div className="text-center py-12 text-slate-400">
-            {mine
+            {filters.search || activeFilterCount > 0
+              ? 'No jobs match your search.'
+              : mine
               ? "You haven't created any jobs yet."
-              : 'No jobs found.'}
+              : 'No jobs available.'}
           </div>
         )}
 
@@ -144,7 +272,6 @@ export default function Jobs() {
         </div>
       </div>
 
-      {/* Delete confirmation */}
       <ConfirmModal
         open={Boolean(deleting)}
         title="Delete this job?"

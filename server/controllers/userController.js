@@ -76,7 +76,7 @@ export const updateMyProfile = async (req, res, next) => {
  */
 export const listCandidates = async (req, res, next) => {
   try {
-    const { search, skill, experience, sort } = req.query;
+    const { search, skill, experience, sort, minApplications } = req.query;
 
     const filter = { role: 'candidate' };
 
@@ -97,15 +97,16 @@ export const listCandidates = async (req, res, next) => {
     }
 
     let sortOption = { createdAt: -1 };
-    if (sort === 'name') sortOption = { name: 1 };
     if (sort === 'oldest') sortOption = { createdAt: 1 };
+    if (sort === 'name') sortOption = { name: 1 };
+    if (sort === 'name-desc') sortOption = { name: -1 };
 
     const candidates = await User.find(filter)
       .select('-password -__v')
       .sort(sortOption);
 
-    // Add application count for each candidate
-    const candidatesWithStats = await Promise.all(
+    // Add application stats
+    let candidatesWithStats = await Promise.all(
       candidates.map(async (c) => {
         const appsCount = await Application.countDocuments({
           candidate: c._id,
@@ -121,6 +122,21 @@ export const listCandidates = async (req, res, next) => {
         };
       })
     );
+
+    // Post-filter by minApplications (client-side since it's computed)
+    if (minApplications) {
+      const min = Number(minApplications);
+      candidatesWithStats = candidatesWithStats.filter(
+        (c) => c.applicationsCount >= min
+      );
+    }
+
+    // If sorting by applications, do it now (was computed)
+    if (sort === 'applications') {
+      candidatesWithStats.sort(
+        (a, b) => b.applicationsCount - a.applicationsCount
+      );
+    }
 
     res.json({
       count: candidatesWithStats.length,
