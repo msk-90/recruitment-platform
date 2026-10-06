@@ -9,6 +9,7 @@ import CreateJob from './pages/CreateJob';
 import Apply from './pages/Apply';
 import Applications from './pages/Applications';
 import Candidates from './pages/Candidates';
+import CandidateDetail from './pages/CandidateDetail';
 import Profile from './pages/Profile';
 import JobApplicants from './pages/JobApplicants';
 
@@ -90,7 +91,15 @@ export default function App() {
             }
           />
 
-          {/* Candidates */}
+          {/* Candidates — specific route first */}
+          <Route
+            path="/candidates/:id"
+            element={
+              <ProtectedRoute>
+                <CandidateDetail />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/candidates"
             element={

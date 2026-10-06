@@ -36,8 +36,7 @@ export default function JobApplicants() {
   const updateStatus = async (appId, status) => {
     try {
       await applicationService.updateStatus(appId, status);
-      // Refresh list
-      load();
+      load(); // refresh
     } catch (err) {
       alert(err.response?.data?.message || 'Update failed');
     }
@@ -86,6 +85,22 @@ export default function JobApplicants() {
       key: 'createdAt',
       label: 'Applied',
       render: (row) => new Date(row.createdAt).toLocaleDateString(),
+    },
+    {
+      key: 'profile',
+      label: 'Profile',
+      render: (row) =>
+        row.candidate?._id ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => navigate(`/candidates/${row.candidate._id}`)}
+          >
+            View
+          </Button>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
     },
     {
       key: 'actions',
